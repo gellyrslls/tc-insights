@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css"; // Ensure globals.css (with Tailwind/ShadCN styles) is imported
-import { cn } from "@/lib/utils"; // Import the ShadCN utility function
+import "./globals.css";
+import { cn } from "@/lib/utils";
+import AuthButton from "@/components/auth/AuthButton"; // Import the AuthButton
+import Link from "next/link"; // Import Link for the title
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -10,35 +12,44 @@ export const metadata: Metadata = {
   description: "Performance analysis for Today's Carolinian",
 };
 
-export default function RootLayout({
+// Make the layout an async component to use await for AuthButton
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head /> {/* You can add specific head tags here if needed */}
+      <head />
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased", // Basic ShadCN theme classes
+          "min-h-screen bg-background font-sans antialiased flex flex-col", // Added flex flex-col
           inter.variable
         )}
       >
-        {/* Placeholder for a potential Header/Navbar later */}
-        {/* <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-14 items-center">
-            NAVBAR CONTENT
+        {/* --- Header --- */}
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-14 items-center justify-between">
+             {/* Left side - App Name/Logo */}
+             <Link href="/" className="font-bold mr-4">Meta Insights</Link>
+             {/* Right side - Auth Button */}
+             <div className="ml-auto"> {/* Push auth button to the right */}
+                <AuthButton />
+             </div>
           </div>
-        </header> */}
-        <main className="flex-1 container py-4"> {/* Add padding/container */}
-          {children} {/* Your page content will be rendered here */}
+        </header>
+
+        {/* --- Main Content --- */}
+        <main className="flex-1 container py-6"> {/* flex-1 makes main content take available space */}
+          {children}
         </main>
-        {/* Placeholder for a potential Footer later */}
-        {/* <footer className="py-6 md:px-8 md:py-0 border-t">
-          <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
-            FOOTER CONTENT
+
+         {/* --- Footer --- */}
+         <footer className="py-4 md:px-8 md:py-0 border-t mt-auto bg-muted/50"> {/* mt-auto pushes footer down, added subtle background */}
+          <div className="container flex flex-col items-center justify-center h-12"> {/* Adjusted height */}
+             <p className="text-xs text-muted-foreground">Today's Carolinian Meta Insights Platform</p>
           </div>
-        </footer> */}
+        </footer>
       </body>
     </html>
   );
