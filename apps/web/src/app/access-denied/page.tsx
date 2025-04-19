@@ -1,18 +1,20 @@
-// apps/web/src/app/access-denied/page.tsx
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import SignOutButton from '@/components/auth/SignOutButton';
 
-export default function AccessDeniedPage({
-  searchParams,
-}: {
-  // Define the expected shape of searchParams more explicitly
-  searchParams?: { reason?: string }; // Expect 'reason' to be a string if present
-}) {
-  // Access the specific param directly from the prop object
-  const reason = searchParams?.reason ?? 'unknown';
+// Use the standard Next.js Page props structure
+interface AccessDeniedPageProps {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
+
+export default function AccessDeniedPage({ searchParams }: AccessDeniedPageProps) {
+  // Access the specific param directly from the destructured prop
+  // Ensure it handles potential string[] case if needed, though 'reason' is likely string
+  const reasonParam = searchParams?.reason;
+  const reason = Array.isArray(reasonParam) ? reasonParam[0] : reasonParam ?? 'unknown';
+
   let message = 'You do not have permission to access the requested page.';
-  const showSignOut = true;
+  let showSignOut = true;
 
   if (reason === 'domain') {
     message = 'Access denied. Please ensure you are logged in with your authorized @usc.edu.ph Google account.';
