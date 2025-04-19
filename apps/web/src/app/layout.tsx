@@ -47,7 +47,7 @@ export default async function RootLayout({
          {/* --- Footer --- */}
          <footer className="py-4 md:px-8 md:py-0 border-t mt-auto bg-muted/50"> {/* mt-auto pushes footer down, added subtle background */}
           <div className="container flex flex-col items-center justify-center h-12"> {/* Adjusted height */}
-             <p className="text-xs text-muted-foreground">Today's Carolinian Meta Insights Platform</p>
+             <p className="text-xs text-muted-foreground">Today&apos;s Carolinian Meta Insights Platform</p>
           </div>
         </footer>
       </body>

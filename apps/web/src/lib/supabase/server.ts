@@ -24,7 +24,7 @@ export function createClient() {
             // Await the promise to get the actual store
             const store = await cookieStore;
             store.set({ name, value, ...options });
-          } catch (error) {
+          } catch (_error) {
             // The `set` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing sessions.
           }
@@ -34,7 +34,7 @@ export function createClient() {
             // Await the promise to get the actual store
             const store = await cookieStore;
             store.set({ name, value: '', ...options }); // Using set with empty value as before
-          } catch (error) {
+          } catch (_error) {
             // The `delete` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing sessions.
           }

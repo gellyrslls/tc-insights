@@ -9,7 +9,6 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'; // Default redirect to homepage
 
   if (code) {
-    const cookieStore = cookies();
     const supabase = createClient();
 
     // Exchange code for session
