@@ -14,7 +14,7 @@ export default function AccessDeniedPage({ searchParams }: AccessDeniedPageProps
   const reason = Array.isArray(reasonParam) ? reasonParam[0] : reasonParam ?? 'unknown';
 
   let message = 'You do not have permission to access the requested page.';
-  let showSignOut = true;
+  const showSignOut = true;
 
   if (reason === 'domain') {
     message = 'Access denied. Please ensure you are logged in with your authorized @usc.edu.ph Google account.';
