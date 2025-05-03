@@ -2,6 +2,9 @@ export type MetricKey = 'views' | 'reach' | 'interactions' | 'link_clicks';
 
 export interface PostDataForScoring {
   post_id: string;
+  platform: string;
+  publish_time: string; // Expecting ISO string format
+  permalink?: string | null;
   views?: number | string | null;
   reach?: number | string | null;
   interactions?: number | string | null;
@@ -19,6 +22,9 @@ export type MetricWeights = {
 // Structure for the final output, including normalized values
 export interface ScoredPost {
   post_id: string;
+  platform: string;
+  publish_time: string;
+  permalink?: string | null;
   // Cleaned numeric metrics
   views: number;
   reach: number;
@@ -55,6 +61,9 @@ function cleanMetricValue(value: unknown): number {
 
 type CleanedPost = {
     post_id: string;
+    platform: string;
+    publish_time: string;
+    permalink?: string | null;
     views: number;
     reach: number;
     interactions: number;
@@ -64,6 +73,9 @@ type CleanedPost = {
 function cleanPostMetrics(post: PostDataForScoring): CleanedPost {
     return {
       post_id: post.post_id,
+      platform: post.platform,
+      publish_time: post.publish_time,
+      permalink: post.permalink,
       views: cleanMetricValue(post.views),
       reach: cleanMetricValue(post.reach),
       interactions: cleanMetricValue(post.interactions),
