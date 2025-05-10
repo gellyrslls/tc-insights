@@ -170,35 +170,40 @@ export function rankPosts<T extends { composite_score: number }>(
 
 // --- Orchestration Function ---
 export function processAndScoreBatch(
-    newPostsRaw: PostDataForScoring[],
-    historicalPostsRaw: PostDataForScoring[],
-    weights: MetricWeights
-  ): ScoredPost[] { // Return type is the final ScoredPost
+  newPostsRaw: PostDataForScoring[],
+  historicalPostsRaw: PostDataForScoring[], // Used for min/max context ONLY
+  weights: MetricWeights
+): ScoredPost[] {
 
-    console.log(`Starting processing for ${newPostsRaw.length} new posts and ${historicalPostsRaw.length} historical posts.`);
+  console.log(`Starting processing for ${newPostsRaw.length} new posts and ${historicalPostsRaw.length} historical posts (for context).`);
 
-    const allPostsCleaned = [...newPostsRaw, ...historicalPostsRaw].map(cleanPostMetrics);
-    console.log(`Cleaned ${allPostsCleaned.length} total posts.`);
+  // Clean both new and historical posts separately
+  const cleanedNewPosts = newPostsRaw.map(cleanPostMetrics);
+  const cleanedHistoricalPosts = historicalPostsRaw.map(cleanPostMetrics);
 
-    const minMaxValues = calculateMinMaxValues(allPostsCleaned);
-    if (Object.keys(minMaxValues).length === 0 && allPostsCleaned.length > 0) {
-        console.warn("Min/Max calculation resulted in empty object. Check input data.");
-    }
+  // Use ALL posts (new + historical) for calculating min/max normalization values
+  const allPostsForMinMaxContext = [...cleanedNewPosts, ...cleanedHistoricalPosts];
+  console.log(`Cleaned ${allPostsForMinMaxContext.length} total posts for min/max calculation context.`);
 
-    const newPostIds = new Set(newPostsRaw.map(p => p.post_id));
-
-    // Calculate scores AND normalized values for NEW posts
-    const scoredNewPostsIntermediate: IntermediateScoredPost[] = allPostsCleaned
-      .filter(p => newPostIds.has(p.post_id))
-      .map(cleanedPost => calculatePostScore(cleanedPost, minMaxValues, weights)); // This now returns IntermediateScoredPost
-    console.log(`Calculated scores for ${scoredNewPostsIntermediate.length} new posts.`);
-
-    // Rank the NEW posts (which now include normalized values)
-    const rankedNewPosts = rankPosts(scoredNewPostsIntermediate); // rankedNewPosts now have type IntermediateScoredPost & { rank_within_batch: number }
-    console.log(`Ranked ${rankedNewPosts.length} new posts.`);
-
-    // The rankedNewPosts array already has the correct shape matching ScoredPost
-    // No final mapping needed if IntermediateScoredPost + rank_within_batch matches ScoredPost
-    // Ensure ScoredPost definition includes all fields from IntermediateScoredPost + rank_within_batch
-    return rankedNewPosts; // Directly return the ranked posts
+  const minMaxValues = calculateMinMaxValues(allPostsForMinMaxContext);
+  if (Object.keys(minMaxValues).length === 0 && allPostsForMinMaxContext.length > 0) {
+    console.warn("Min/Max calculation resulted in empty object. Check input data.");
   }
+
+  // --- IMPORTANT CHANGE IS HERE: Score ONLY the NEW posts ---
+  // We iterate over `cleanedNewPosts` (which are unique by definition from the Meta fetch for this batch)
+  // and score them using the `minMaxValues` derived from the broader context.
+  const scoredNewPostsIntermediate: IntermediateScoredPost[] = cleanedNewPosts.map(
+    (aCleanedNewPost) => calculatePostScore(aCleanedNewPost, minMaxValues, weights)
+  );
+  // This log will now correctly reflect the number of new posts being scored.
+  console.log(`Calculated scores for ${scoredNewPostsIntermediate.length} new posts.`);
+
+  // Rank only the NEWLY scored posts
+  const rankedNewPosts = rankPosts(scoredNewPostsIntermediate);
+  console.log(`Ranked ${rankedNewPosts.length} new posts.`);
+
+  // The rankedNewPosts array will now only contain entries derived from newPostsRaw,
+  // ensuring no duplicate post_ids from this batch processing step.
+  return rankedNewPosts;
+}
