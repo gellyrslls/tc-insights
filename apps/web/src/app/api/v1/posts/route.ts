@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) { // Use request to get searchPa
     } else {
       // Apply Platform filter (if not searching by specific ID)
       if (platform && platform !== 'all') {
-        query = query.eq('platform', platform);
+        query = query.ilike('platform', platform);
       }
 
       // Apply Date Range filter (if not searching by specific ID and not 'overall')

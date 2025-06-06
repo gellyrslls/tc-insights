@@ -19,6 +19,6 @@ export default async function DashboardPage() {
 
   // Pass authenticated user info to the client component if needed
   return (
-    <DashboardClient userEmail={user.email || ''} />
+    <DashboardClient/>
   );
 }
