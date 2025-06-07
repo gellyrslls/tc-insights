@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import type { DateRange } from "react-day-picker";
 import { format, formatDistanceToNow } from "date-fns";
 import { Calendar as CalendarIcon, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import type { ColumnDef } from "@tanstack/react-table";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,10 +28,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-// Corrected import paths
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { DataTable } from "./data-table";
-import { columns } from "./columns";
+import { toast } from "sonner";
 
 export type Post = {
   rank: number;
@@ -43,26 +51,136 @@ export type Post = {
   interactions: number | null;
 };
 
-// No props are needed for this component anymore
 export default function DashboardClient() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
   const [customDateRange, setCustomDateRange] = useState<
     DateRange | undefined
   >();
 
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [analysisText, setAnalysisText] = useState("");
+  const [isInsightLoading, setIsInsightLoading] = useState(false);
+  const [isInsightSaving, setIsInsightSaving] = useState(false);
+
+  useEffect(() => {
+    if (selectedPost) {
+      const fetchInsight = async () => {
+        setIsInsightLoading(true);
+        try {
+          const response = await fetch(
+            `/api/v1/insights/${selectedPost.post_id}`
+          );
+          if (!response.ok) throw new Error("Failed to fetch insight.");
+          const data = await response.json();
+          setAnalysisText(data.qualitative_analysis || "");
+        } catch (error) {
+          console.error(error);
+          alert("Error: Could not fetch existing insight.");
+        } finally {
+          setIsInsightLoading(false);
+        }
+      };
+      fetchInsight();
+    }
+  }, [selectedPost]);
+
+  const handleAddInsightClick = (post: Post) => {
+    setSelectedPost(post);
+  };
+
+  const handleCloseDialog = () => {
+    setSelectedPost(null);
+    setAnalysisText("");
+  };
+
+  const handleSaveInsight = async () => {
+    if (!selectedPost) return;
+    setIsInsightSaving(true);
+    try {
+      const response = await fetch(`/api/v1/insights/${selectedPost.post_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisText }),
+      });
+      if (!response.ok) throw new Error("Failed to save insight.");
+      toast.success("Insight saved successfully!");
+      handleCloseDialog();
+    } catch (error) {
+      console.error(error);
+      toast.error("Error: Could not save insight.");
+    } finally {
+      setIsInsightSaving(false);
+    }
+  };
+
+  const columns: ColumnDef<Post>[] = [
+    {
+      accessorKey: "rank",
+      header: "Rank",
+      cell: ({ row }) => (
+        <div className="text-center font-medium">{row.getValue("rank")}</div>
+      ),
+    },
+    { accessorKey: "platform", header: "Platform" },
+    {
+      accessorKey: "composite_score",
+      header: "Score",
+      cell: ({ row }) => (
+        <div className="font-medium">
+          {parseFloat(row.getValue("composite_score")).toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "publish_time",
+      header: "Published",
+      cell: ({ row }) => (
+        <span>
+          {format(new Date(row.getValue("publish_time")), "LLL dd, yyyy")}
+        </span>
+      ),
+    },
+    { accessorKey: "interactions", header: "Interactions" },
+    { accessorKey: "reach", header: "Reach" },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => {
+        const post = row.original;
+        return (
+          <div className="space-x-2 text-right">
+            <Button variant="ghost" size="sm" asChild>
+              <Link
+                href={post.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Post
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleAddInsightClick(post)}
+            >
+              Add Insight
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   const fetchLastUpdated = async () => {
     try {
       const response = await fetch("/api/v1/metadata/last-updated");
       const data = await response.json();
-      if (data.lastUpdated) {
-        setLastUpdated(data.lastUpdated);
-      }
+      if (data.lastUpdated) setLastUpdated(data.lastUpdated);
     } catch (error) {
       console.error("Could not fetch last updated timestamp", error);
     }
@@ -71,23 +189,18 @@ export default function DashboardClient() {
   const fetchPosts = useCallback(async () => {
     setIsLoading(true);
     const params = new URLSearchParams();
-
     if (platform !== "all") params.append("platform", platform);
-
     if (timePeriod === "custom" && customDateRange?.from) {
       params.append("startDate", format(customDateRange.from, "yyyy-MM-dd"));
-      if (customDateRange.to) {
+      if (customDateRange.to)
         params.append("endDate", format(customDateRange.to, "yyyy-MM-dd"));
-      }
     } else {
       params.append("period", timePeriod);
     }
-
     if (timePeriod === "overall") {
       params.append("ranking", "overall");
       params.append("limit", "10");
     }
-
     try {
       const response = await fetch(`/api/v1/posts?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch posts");
@@ -121,7 +234,7 @@ export default function DashboardClient() {
 
   return (
     <TooltipProvider>
-      {/* Page Header */}
+      {/* Page Header and Filters... (code unchanged) */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -153,8 +266,6 @@ export default function DashboardClient() {
           </Button>
         </div>
       </div>
-
-      {/* Filters and Table Section */}
       <div className="space-y-4">
         <div className="flex items-center space-x-2">
           <Select
@@ -171,10 +282,9 @@ export default function DashboardClient() {
               <SelectItem value="instagram">Instagram</SelectItem>
             </SelectContent>
           </Select>
-
           <Select
             value={timePeriod}
-            onValueChange={(value: string) => {
+            onValueChange={(value) => {
               setTimePeriod(value);
               if (value !== "custom") setCustomDateRange(undefined);
             }}
@@ -193,7 +303,6 @@ export default function DashboardClient() {
               <SelectItem value="custom">Custom Range</SelectItem>
             </SelectContent>
           </Select>
-
           {timePeriod === "custom" && (
             <Popover>
               <PopoverTrigger asChild>
@@ -231,9 +340,62 @@ export default function DashboardClient() {
             </Popover>
           )}
         </div>
-
         <DataTable columns={columns} data={posts} />
       </div>
+
+      {/* --- Insight Dialog --- */}
+      <Dialog
+        open={!!selectedPost}
+        onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Qualitative Insight</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="text-sm text-muted-foreground">
+              <p>
+                Platform:{" "}
+                <span className="font-medium text-foreground">
+                  {selectedPost?.platform}
+                </span>
+              </p>
+              <p>
+                Post ID:{" "}
+                <span className="font-medium text-foreground">
+                  {selectedPost?.post_id}
+                </span>
+              </p>
+            </div>
+            {isInsightLoading ? (
+              <div className="flex items-center justify-center h-24">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Textarea
+                placeholder="Type your analysis here..."
+                value={analysisText}
+                onChange={(e) => setAnalysisText(e.target.value)}
+                rows={6}
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseDialog}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveInsight}
+              disabled={isInsightSaving || isInsightLoading}
+            >
+              {isInsightSaving && (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isInsightSaving ? "Saving..." : "Save Insight"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
