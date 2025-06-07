@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Corrected import paths
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 

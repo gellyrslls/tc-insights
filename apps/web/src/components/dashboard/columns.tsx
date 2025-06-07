@@ -5,9 +5,10 @@ import { format } from "date-fns";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { type Post } from "./DashboardClient"; // We'll import the type from our client component
+import { type Post } from "./DashboardClient"; // This path is now correct
 
 export const columns: ColumnDef<Post>[] = [
+  // ... rest of the file is unchanged
   {
     accessorKey: "rank",
     header: "Rank",
