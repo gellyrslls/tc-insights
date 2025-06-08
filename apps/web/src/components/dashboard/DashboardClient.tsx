@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { DateRange } from "react-day-picker";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar as CalendarIcon, RefreshCw } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, FileText } from "lucide-react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -49,6 +49,7 @@ export type Post = {
   views: number | null;
   reach: number | null;
   interactions: number | null;
+  qualitative_analysis: string | null; // MODIFIED: Added field for insight check
 };
 
 export default function DashboardClient() {
@@ -109,6 +110,8 @@ export default function DashboardClient() {
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
+      // After saving, refetch the posts to update the UI with the new icon
+      await fetchPosts();
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -152,8 +155,22 @@ export default function DashboardClient() {
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => {
         const post = row.original;
+        const hasInsight = !!post.qualitative_analysis;
+
         return (
-          <div className="space-x-2 text-right">
+          <div className="flex items-center justify-end space-x-2 text-right">
+            {hasInsight && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Insight has been saved for this post.</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Button variant="ghost" size="sm" asChild>
               <Link
                 href={post.permalink}
@@ -168,7 +185,7 @@ export default function DashboardClient() {
               size="sm"
               onClick={() => handleAddInsightClick(post)}
             >
-              Add Insight
+              {hasInsight ? "Edit Insight" : "Add Insight"}
             </Button>
           </div>
         );
