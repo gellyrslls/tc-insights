@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { Users } from "lucide-react";
 
 export default function SignInButton({ className }: { className?: string }) {
   const supabase = createClient();
@@ -25,6 +26,7 @@ export default function SignInButton({ className }: { className?: string }) {
 
   return (
     <Button onClick={handleGoogleLogin} className={cn(className)}>
+      <Users className="mr-2 h-5 w-5" />
       Sign In with Google
     </Button>
   );
