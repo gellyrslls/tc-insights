@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-// import type { DateRange } from "react-day-picker";
 import { format, formatDistanceToNow } from "date-fns";
 import { RefreshCw, Facebook, Instagram } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -21,6 +20,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
 import SignOutButton from "../auth/SignOutButton";
+import { PostInsightModal } from "./PostInsightModal";
 
 export type Post = {
   rank: number;
@@ -49,17 +49,63 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
 
-  // const [customDateRange, _setCustomDateRange] = useState<DateRange | undefined>();
-
-  const [, setSelectedPost] = useState<Post | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [analysisText, setAnalysisText] = useState("");
+  const [isInsightLoading, setIsInsightLoading] = useState(false);
+  const [isInsightSaving, setIsInsightSaving] = useState(false);
 
   const hasActiveFilters = platform !== "all" || timePeriod !== "overall";
 
+  useEffect(() => {
+    if (selectedPost) {
+      const fetchInsight = async () => {
+        setIsInsightLoading(true);
+        try {
+          const response = await fetch(
+            `/api/v1/insights/${selectedPost.post_id}`
+          );
+          if (!response.ok) throw new Error("Failed to fetch insight.");
+          const data = await response.json();
+          setAnalysisText(data.qualitative_analysis || "");
+        } catch (error) {
+          console.error(error);
+          toast.error("Error: Could not fetch existing insight.");
+        } finally {
+          setIsInsightLoading(false);
+        }
+      };
+      fetchInsight();
+    }
+  }, [selectedPost]);
+
   const handleAddInsightClick = (post: Post) => {
     setSelectedPost(post);
-    toast.info(
-      `Clicked on post #${post.rank}. Insight modal coming in Phase 3!`
-    );
+  };
+
+  const handleCloseDialog = () => {
+    setSelectedPost(null);
+    setAnalysisText("");
+  };
+
+  const handleSaveInsight = async () => {
+    if (!selectedPost) return;
+    setIsInsightSaving(true);
+    try {
+      const response = await fetch(`/api/v1/insights/${selectedPost.post_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisText }),
+      });
+      if (!response.ok) throw new Error("Failed to save insight.");
+      toast.success("Insight saved successfully!");
+      await fetchPosts();
+      handleCloseDialog();
+    } catch (error) {
+      console.error(error);
+      toast.error("Error: Could not save insight.");
+    } finally {
+      setIsInsightSaving(false);
+    }
   };
 
   const columns: ColumnDef<Post>[] = [
@@ -74,15 +120,16 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       accessorKey: "platform",
       header: "Platform",
       cell: ({ row }) => {
-        const platform: "Facebook" | "Instagram" = row.getValue("platform");
+        const platformValue: "Facebook" | "Instagram" =
+          row.getValue("platform");
         return (
           <div className="flex items-center space-x-2">
-            {platform === "Facebook" ? (
+            {platformValue === "Facebook" ? (
               <Facebook className="w-4 h-4 text-blue-600" />
             ) : (
               <Instagram className="w-4 h-4 text-pink-600" />
             )}
-            <span className="text-sm">{platform}</span>
+            <span className="text-sm">{platformValue}</span>
           </div>
         );
       },
@@ -140,14 +187,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     setIsLoading(true);
     const params = new URLSearchParams();
     if (platform !== "all") params.append("platform", platform);
-
-    // The logic for custom date range is commented out as it's not currently used in the UI
-    // if (timePeriod === "custom" && customDateRange?.from) {
-    //   params.append("startDate", format(customDateRange.from, "yyyy-MM-dd"));
-    //   if (customDateRange.to)
-    //     params.append("endDate", format(customDateRange.to, "yyyy-MM-dd"));
-    // } else
-
     if (timePeriod !== "overall") {
       params.append("period", timePeriod);
     } else {
@@ -357,9 +396,24 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           </div>
 
           <Card>
-            <DataTable columns={columns} data={posts} />
+            <DataTable
+              columns={columns}
+              data={posts}
+              onRowClick={handleAddInsightClick}
+            />
           </Card>
         </main>
+
+        <PostInsightModal
+          isOpen={!!selectedPost}
+          onClose={handleCloseDialog}
+          post={selectedPost}
+          insight={analysisText}
+          onInsightChange={setAnalysisText}
+          onSave={handleSaveInsight}
+          isLoading={isInsightLoading}
+          isSaving={isInsightSaving}
+        />
       </div>
     </TooltipProvider>
   );
