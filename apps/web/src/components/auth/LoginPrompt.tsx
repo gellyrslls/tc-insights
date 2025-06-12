@@ -32,7 +32,8 @@ export function LoginPrompt() {
               TC Insights
             </h2>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Streamlining Social Media Analytics & Reporting for Today&apos;s Carolinian
+              Streamlining Social Media Analytics & Reporting for Today&apos;s
+              Carolinian
             </p>
             <div className="space-y-4">
               <SignInButton className="text-lg px-10 w-xs h-auto bg-tc-red hover:bg-tc-darkred" />
@@ -92,8 +93,10 @@ export function LoginPrompt() {
           {/* Quick Start Guide */}
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Quick Start Guide</CardTitle>
-              <CardDescription>Here&apos;s how to get started:</CardDescription>
+              <CardTitle className="text-2xl">Quick Start Guide</CardTitle>
+              <CardDescription className="-mt-1">
+                Here&apos;s how to get started:
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
