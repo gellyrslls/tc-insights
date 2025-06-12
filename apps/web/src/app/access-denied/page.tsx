@@ -1,49 +1,81 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import SignOutButton from '@/components/auth/SignOutButton';
-
-// Define the props type matching the internal PageProps structure
-type AccessDeniedPageProps = {
-  // Use a more specific type for params, even if wrapped in Promise
-  params: Promise<{ [key: string]: string | string[] | undefined }>; // More specific than Promise<any>
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-};
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Shield } from "lucide-react";
+import Link from "next/link";
 
 export default async function AccessDeniedPage({
-  params,
   searchParams,
-}: AccessDeniedPageProps) {
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const reason = resolvedSearchParams?.reason ?? "unknown";
 
-  const resolvedSearchParams = await searchParams; // Await searchParams
-  const reasonParam = resolvedSearchParams?.reason;
-  const reason = Array.isArray(reasonParam) ? reasonParam[0] : reasonParam ?? 'unknown';
+  const title = "Access Denied";
+  let description = "You don't have permission to access this application.";
 
-  let message = 'You do not have permission to access the requested page.';
-  const showSignOut = true;
-
-  // Use params trivially to satisfy lint if needed
-  // We might need to await params here too if the type check below fails
-  const resolvedParams = await params;
-  if (resolvedParams) { /* Using resolvedParams to satisfy lint */ }
-
-  if (reason === 'domain') {
-    message = 'Access denied. Please ensure you are logged in with your authorized @usc.edu.ph Google account.';
-  } else if (reason === 'whitelist') {
-    message = 'Your @usc.edu.ph account is not authorized to use this application. Please contact the site administrator if you believe this is an error.';
-  } else if (reason === 'unknown') {
-    // showSignOut = false;
+  if (reason === "domain") {
+    description =
+      "Access is restricted to authorized users with a @usc.edu.ph email address.";
+  } else if (reason === "whitelist") {
+    description =
+      "Your @usc.edu.ph account is not authorized for this application.";
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
-      <h1 className="text-3xl font-bold mb-4 text-destructive">Access Denied</h1>
-      <p className="mb-6 max-w-md">{message}</p>
-      <div className="flex gap-4">
-        <Button asChild variant="outline">
-          <Link href="/">Go to Homepage</Link>
-        </Button>
-        {showSignOut && <SignOutButton />}
-      </div>
+    <div className="min-h-screen bg-white text-black flex flex-col">
+      {/* Header */}
+      <header className="border-b bg-white">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-12 h-12 bg-tc-red flex items-center justify-center text-white font-bold text-xl">
+              TC
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">TC Insights</h1>
+              <p className="text-sm text-gray-600">Today&apos;s Carolinian</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-24">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="mb-8">
+            <div className="w-24 h-24 bg-tc-red/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-12 h-12 text-tc-red" />
+            </div>
+            <h1 className="text-4xl font-bold text-tc-red mb-4">{title}</h1>
+            <p className="text-lg text-gray-600 mb-8">{description}</p>
+          </div>
+
+          <Alert className="border-tc-red bg-tc-red/5 mb-8">
+            <Shield className="h-4 w-4 text-tc-red" />
+            <AlertDescription className="text-gray-700">
+              Access is restricted to authorized Online Managers and Editors. If
+              you believe you should have access, contact him.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button asChild variant="outline">
+              <Link href="https://www.instagram.com/reel/DJ6YcZ-zMsw/">
+                piece 😭✌️
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-tc-red text-white mt-auto">
+        <div className="container mx-auto px-4 py-6">
+          <p className="text-center">
+            © 2025 Today&apos;s Carolinian. Internal use only.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
