@@ -33,8 +33,8 @@ export type Post = {
   reach: number | null;
   interactions: number | null;
   qualitative_analysis: string | null;
-  caption?: string;
-  image_url?: string;
+  caption?: string | null;
+  image_url?: string | null;
 };
 
 interface DashboardClientProps {

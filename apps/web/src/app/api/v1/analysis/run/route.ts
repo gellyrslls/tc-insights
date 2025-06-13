@@ -38,6 +38,8 @@ interface MetaPostOrMediaItem {
   permalink?: string; // Instagram
   message?: string; // Facebook
   caption?: string; // Instagram
+  full_picture?: string; // Facebook
+  media_url?: string; // Instagram
   media_type?: string; // Instagram
   is_published?: boolean; // Facebook
   is_expired?: boolean; // Facebook
@@ -233,7 +235,7 @@ async function fetchFacebookPosts(
   since?: number
 ): Promise<PostDataForScoring[]> {
   const posts: PostDataForScoring[] = [];
-  const initialUrl = `https://graph.facebook.com/v22.0/${pageId}/published_posts?fields=id,created_time,permalink_url,message,is_published,is_expired${
+  const initialUrl = `https://graph.facebook.com/v22.0/${pageId}/published_posts?fields=id,created_time,permalink_url,message,is_published,is_expired,full_picture${
     since ? `&since=${since}` : ""
   }&access_token=${accessToken}`;
   let nextUrl: string | undefined = initialUrl;
@@ -287,6 +289,8 @@ async function fetchFacebookPosts(
               platform: "Facebook",
               publish_time: post.created_time || new Date().toISOString(),
               permalink: post.permalink_url,
+              caption: post.message,
+              image_url: post.full_picture,
               views: insights.views,
               reach: insights.reach,
               interactions: insights.interactions,
@@ -429,7 +433,7 @@ async function fetchInstagramPosts(
   since?: number
 ): Promise<PostDataForScoring[]> {
   const posts: PostDataForScoring[] = [];
-  const initialUrl = `https://graph.facebook.com/v22.0/${igBusinessId}/media?fields=id,timestamp,permalink,media_type,caption,media_product_type${
+  const initialUrl = `https://graph.facebook.com/v22.0/${igBusinessId}/media?fields=id,timestamp,permalink,media_type,caption,media_product_type,media_url${
     since ? `&since=${since}` : ""
   }&access_token=${accessToken}`;
   let nextUrl: string | undefined = initialUrl;
@@ -487,6 +491,8 @@ async function fetchInstagramPosts(
               platform: "Instagram",
               publish_time: media.timestamp || new Date().toISOString(),
               permalink: media.permalink,
+              caption: media.caption,
+              image_url: media.media_url,
               views: insights.impressions,
               reach: insights.reach,
               interactions: insights.engagement,
@@ -783,6 +789,8 @@ export async function POST() {
       reach: scoredPost.reach,
       interactions: scoredPost.interactions,
       link_clicks: scoredPost.link_clicks,
+      caption: scoredPost.caption,
+      image_url: scoredPost.image_url,
       composite_score: scoredPost.composite_score,
       rank_within_batch: scoredPost.rank_within_batch,
     }));

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("social_posts")
       .select(
-        "post_id, platform, permalink, publish_time, composite_score, views, reach, interactions, link_clicks, qualitative_analysis"
+        "post_id, platform, permalink, publish_time, composite_score, views, reach, interactions, link_clicks, qualitative_analysis, caption, image_url"
       );
 
     if (postId) {
