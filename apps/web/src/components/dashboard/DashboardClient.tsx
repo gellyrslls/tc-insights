@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // Import useRef
 import { format, formatDistanceToNow } from "date-fns";
-import { RefreshCw, Facebook, Instagram } from "lucide-react";
+import {
+  RefreshCw,
+  Facebook,
+  Instagram,
+  Calendar as CalendarIcon,
+} from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
+import { type DateRange } from "react-day-picker";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,11 +22,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
 import SignOutButton from "../auth/SignOutButton";
 import { PostInsightModal } from "./PostInsightModal";
+import { cn } from "@/lib/utils";
 
 export type Post = {
   rank: number;
@@ -46,15 +59,101 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  // Filter states
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
+  const [date, setDate] = useState<DateRange | undefined>(undefined);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [analysisText, setAnalysisText] = useState("");
   const [isInsightLoading, setIsInsightLoading] = useState(false);
   const [isInsightSaving, setIsInsightSaving] = useState(false);
 
-  const hasActiveFilters = platform !== "all" || timePeriod !== "overall";
+  const hasActiveFilters =
+    platform !== "all" || timePeriod !== "overall" || !!date;
+
+  // *** START OF THE FINAL FIX ***
+
+  // 1. Create a ref to track the state of a user's date selection "session".
+  // This does not cause re-renders and persists across them.
+  const isDateSelectionInProgress = useRef(false);
+
+  const fetchPosts = useCallback(
+    async (
+      currentPlatform: string,
+      currentPeriod: string,
+      currentDate?: DateRange
+    ) => {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+
+      if (currentPlatform !== "all") {
+        params.append("platform", currentPlatform);
+      }
+
+      if (currentPeriod === "custom" && currentDate?.from && currentDate?.to) {
+        params.append("startDate", format(currentDate.from, "yyyy-MM-dd"));
+        params.append("endDate", format(currentDate.to, "yyyy-MM-dd"));
+      } else if (currentPeriod !== "overall") {
+        params.append("period", currentPeriod);
+      } else {
+        params.append("ranking", "overall");
+        params.append("limit", "10");
+      }
+
+      try {
+        const response = await fetch(`/api/v1/posts?${params.toString()}`);
+        if (!response.ok) throw new Error("Failed to fetch posts");
+        const data: Post[] = await response.json();
+        setPosts(data);
+      } catch (error) {
+        console.error(error);
+        toast.error("Error: Could not fetch posts.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  // 2. Create a handler for when the popover opens or closes.
+  const handleDatePopoverOpenChange = (open: boolean) => {
+    // When the popover opens, we know the user is starting a NEW selection.
+    // So, we set our ref to true.
+    if (open) {
+      isDateSelectionInProgress.current = true;
+    }
+  };
+
+  // 3. Create the definitive handler for date selection.
+  const handleDateSelect = (range: DateRange | undefined) => {
+    // Always update the state for immediate UI feedback.
+    setDate(range);
+
+    // If our ref is true, it means this is the FIRST click.
+    if (isDateSelectionInProgress.current) {
+      // It's the first click, so we do NOT fetch. We just set the ref to false
+      // to signal that the next click will be the second one.
+      isDateSelectionInProgress.current = false;
+      return; // Stop execution here.
+    }
+
+    // If the ref was already false, it means this is the SECOND click.
+    // Now we can safely check for a complete range and fetch.
+    if (range?.from && range?.to) {
+      setTimePeriod("custom");
+      fetchPosts(platform, "custom", range);
+    }
+  };
+
+  // *** END OF THE FINAL FIX ***
+
+  // Effect for initial data load ONLY
+  useEffect(() => {
+    fetchPosts("all", "overall", undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (selectedPost) {
@@ -98,7 +197,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
-      await fetchPosts();
+      await fetchPosts(platform, timePeriod, date);
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -183,32 +282,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }
   }, []);
 
-  const fetchPosts = useCallback(async () => {
-    setIsLoading(true);
-    const params = new URLSearchParams();
-    if (platform !== "all") params.append("platform", platform);
-    if (timePeriod !== "overall") {
-      params.append("period", timePeriod);
-    } else {
-      params.append("ranking", "overall");
-      params.append("limit", "10");
-    }
-    try {
-      const response = await fetch(`/api/v1/posts?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch posts");
-      const data: Post[] = await response.json();
-      setPosts(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [platform, timePeriod]);
-
   useEffect(() => {
-    fetchPosts();
     fetchLastUpdated();
-  }, [fetchPosts, fetchLastUpdated]);
+  }, [fetchLastUpdated]);
 
   const handleUpdateData = async () => {
     setIsUpdating(true);
@@ -221,7 +297,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           errorData.details || "Failed to update data from Meta."
         );
       }
-      await fetchPosts();
+      await fetchPosts(platform, timePeriod, date);
       await fetchLastUpdated();
       toast.success("Data updated successfully!");
     } catch (error: unknown) {
@@ -350,10 +426,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           )}
 
           <div className="mb-6">
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-4">
               <Select
                 value={platform}
-                onValueChange={setPlatform}
+                onValueChange={(value) => {
+                  setPlatform(value);
+                  fetchPosts(value, timePeriod, date);
+                }}
                 disabled={isLoading || isUpdating}
               >
                 <SelectTrigger className="w-[180px]">
@@ -367,7 +446,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               </Select>
               <Select
                 value={timePeriod}
-                onValueChange={setTimePeriod}
+                onValueChange={(value) => {
+                  if (value !== "custom") {
+                    setDate(undefined);
+                    setTimePeriod(value);
+                    fetchPosts(platform, value, undefined);
+                  }
+                }}
                 disabled={isLoading || isUpdating}
               >
                 <SelectTrigger className="w-[180px]">
@@ -380,6 +465,46 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   <SelectItem value="last_90_days">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* 4. Wire up the new handlers to the Popover and Calendar */}
+              <Popover onOpenChange={handleDatePopoverOpenChange}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-[260px] justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                    disabled={isLoading || isUpdating}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>
+                          {format(date.from, "LLL dd, y")} -{" "}
+                          {format(date.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(date.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={handleDateSelect}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+
               {hasActiveFilters && (
                 <Button
                   variant="outline"
@@ -387,6 +512,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   onClick={() => {
                     setPlatform("all");
                     setTimePeriod("overall");
+                    setDate(undefined);
+                    fetchPosts("all", "overall", undefined);
                   }}
                 >
                   Clear Filters

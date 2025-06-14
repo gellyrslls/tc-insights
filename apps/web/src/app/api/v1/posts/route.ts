@@ -115,11 +115,9 @@ export async function GET(request: NextRequest) {
         query = query.lte("publish_time", endDate);
       }
 
-      query = query.not("composite_score", "is", null);
-      query = query.order("composite_score", {
-        ascending: false,
-        nullsFirst: false,
-      });
+      query = query
+        .order("composite_score", { ascending: false, nullsFirst: false })
+        .order("interactions", { ascending: false });
 
       // Apply Limit (only for overall ranking or if explicitly requested)
       if (limit && !isNaN(limit)) {
