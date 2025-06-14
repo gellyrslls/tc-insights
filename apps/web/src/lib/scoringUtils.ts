@@ -3,7 +3,7 @@ export type MetricKey = "views" | "reach" | "interactions" | "link_clicks";
 export interface PostDataForScoring {
   post_id: string;
   platform: string;
-  publish_time: string; // Expecting ISO string format
+  publish_time: string;
   permalink?: string | null;
   caption?: string | null;
   image_url?: string | null;
@@ -13,15 +13,11 @@ export interface PostDataForScoring {
   link_clicks?: number | string | null;
 }
 
-export type MetricMinMax = {
-  [key in MetricKey]?: { min: number; max: number };
-};
-
 export type MetricWeights = {
   [key in MetricKey]?: number;
 };
 
-// Structure for the final output, including normalized values
+// Structure for the final output
 export interface ScoredPost {
   post_id: string;
   platform: string;
@@ -34,15 +30,10 @@ export interface ScoredPost {
   reach: number;
   interactions: number;
   link_clicks: number;
-  // Normalized metrics
-  views_norm: number; // Make non-optional in the final output
-  reach_norm: number;
-  interactions_norm: number;
-  link_clicks_norm: number;
   // Final calculated score
   composite_score: number;
   // Rank
-  rank_within_batch: number; // Make non-optional in the final output
+  rank_within_batch: number;
 }
 
 export const metricKeys: MetricKey[] = [
@@ -96,75 +87,41 @@ function cleanPostMetrics(post: PostDataForScoring): CleanedPost {
   };
 }
 
-export function calculateMinMaxValues(
-  cleanedPosts: CleanedPost[]
-): MetricMinMax {
-  const minMax: MetricMinMax = {};
-  if (cleanedPosts.length === 0) return {};
-
-  for (const key of metricKeys) {
-    const values = cleanedPosts
-      .map((p) => p[key])
-      .filter((v) => typeof v === "number");
-    if (values.length > 0) {
-      minMax[key] = { min: Math.min(...values), max: Math.max(...values) };
-    } else {
-      minMax[key] = { min: 0, max: 0 };
-    }
-  }
-  console.log("Calculated Min/Max:", JSON.stringify(minMax, null, 2));
-  return minMax;
-}
-
-function normalizeValue(value: number, min: number, max: number): number {
-  if (max === min) return 0.0;
-  const clampedValue = Math.max(min, Math.min(value, max));
-  return (clampedValue - min) / (max - min);
-}
-
-// Type for intermediate scored post including normalized values
-type IntermediateScoredPost = CleanedPost & {
-  views_norm: number;
-  reach_norm: number;
-  interactions_norm: number;
-  link_clicks_norm: number;
-  composite_score: number;
-};
-
-function calculatePostScore(
-  post: CleanedPost,
-  minMaxValues: MetricMinMax,
+function calculatePercentileScores(
+  posts: CleanedPost[],
   weights: MetricWeights
-): IntermediateScoredPost {
-  // Return type includes normalized values
-  let compositeScore = 0;
-  const normalizedValues: { [key: string]: number } = {};
-
-  for (const key of metricKeys) {
-    const metricMinMax = minMaxValues[key];
-    const weight = weights[key] ?? 0;
-    let normalized = 0; // Default normalized value
-
-    if (metricMinMax && weight > 0) {
-      const rawValue = post[key];
-      normalized = normalizeValue(rawValue, metricMinMax.min, metricMinMax.max);
-      compositeScore += normalized * weight;
-    }
-    // Assign normalized value even if weight is 0 or minMax is missing
-    normalizedValues[`${key}_norm`] = normalized;
+): (CleanedPost & { composite_score: number })[] {
+  if (posts.length === 0) {
+    return [];
   }
 
-  return {
-    ...post, // Spread the cleaned post data (id, views, reach, etc.)
-    views_norm: normalizedValues["views_norm"],
-    reach_norm: normalizedValues["reach_norm"],
-    interactions_norm: normalizedValues["interactions_norm"],
-    link_clicks_norm: normalizedValues["link_clicks_norm"],
-    composite_score: compositeScore * 100, // Scale score to 0-100
-  };
+  const postsWithRawPerf = posts.map((post) => {
+    const raw_performance = metricKeys.reduce((acc, key) => {
+      const weight = weights[key] ?? 0;
+      const value = post[key] ?? 0;
+      return acc + value * weight;
+    }, 0);
+    return { ...post, raw_performance };
+  });
+
+  postsWithRawPerf.sort((a, b) => b.raw_performance - a.raw_performance);
+
+  const totalPosts = postsWithRawPerf.length;
+  const scoredPosts = postsWithRawPerf.map((post, index) => {
+    const rank = index + 1;
+    const percentile =
+      totalPosts > 1 ? ((totalPosts - rank) / (totalPosts - 1)) * 100 : 100;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { raw_performance, ...restOfPost } = post;
+    return {
+      ...restOfPost,
+      composite_score: percentile,
+    };
+  });
+
+  return scoredPosts;
 }
 
-// Adjust generic constraint to allow any object with composite_score
 export function rankPosts<T extends { composite_score: number }>(
   posts: T[]
 ): (T & { rank_within_batch: number })[] {
@@ -176,7 +133,6 @@ export function rankPosts<T extends { composite_score: number }>(
   let lastScore = -Infinity;
 
   const rankedPosts = sortedPosts.map((post) => {
-    // Removed unused index
     count++;
     if (post.composite_score !== lastScore) {
       rank = count;
@@ -190,53 +146,66 @@ export function rankPosts<T extends { composite_score: number }>(
 // --- Orchestration Function ---
 export function processAndScoreBatch(
   newPostsRaw: PostDataForScoring[],
-  historicalPostsRaw: PostDataForScoring[], // Used for min/max context ONLY
+  historicalPostsRaw: PostDataForScoring[],
   weights: MetricWeights
 ): ScoredPost[] {
   console.log(
-    `Starting processing for ${newPostsRaw.length} new posts and ${historicalPostsRaw.length} historical posts (for context).`
+    `Starting PERCENTILE-BASED processing for ${newPostsRaw.length} new posts and ${historicalPostsRaw.length} historical posts.`
   );
 
-  // Clean both new and historical posts separately
-  const cleanedNewPosts = newPostsRaw.map(cleanPostMetrics);
-  const cleanedHistoricalPosts = historicalPostsRaw.map(cleanPostMetrics);
+  const uniquePostsMap = new Map(
+    historicalPostsRaw.map((post) => [post.post_id, post])
+  );
+  newPostsRaw.forEach((post) => {
+    uniquePostsMap.set(post.post_id, post);
+  });
 
-  // Use ALL posts (new + historical) for calculating min/max normalization values
-  const allPostsForMinMaxContext = [
-    ...cleanedNewPosts,
-    ...cleanedHistoricalPosts,
-  ];
+  const allUniquePosts = Array.from(uniquePostsMap.values());
   console.log(
-    `Cleaned ${allPostsForMinMaxContext.length} total posts for min/max calculation context.`
+    `Combined and de-duplicated posts. Total unique posts for scoring context: ${allUniquePosts.length}`
   );
 
-  const minMaxValues = calculateMinMaxValues(allPostsForMinMaxContext);
-  if (
-    Object.keys(minMaxValues).length === 0 &&
-    allPostsForMinMaxContext.length > 0
-  ) {
-    console.warn(
-      "Min/Max calculation resulted in empty object. Check input data."
+  const allCleanedPosts = allUniquePosts.map(cleanPostMetrics);
+
+  const allFacebookPosts = allCleanedPosts.filter(
+    (p) => p.platform === "Facebook"
+  );
+  const allInstagramPosts = allCleanedPosts.filter(
+    (p) => p.platform === "Instagram"
+  );
+
+  const allScoredPosts: (CleanedPost & { composite_score: number })[] = [];
+
+  if (allFacebookPosts.length > 0) {
+    console.log(`Scoring ${allFacebookPosts.length} Facebook posts...`);
+    const scoredFacebookPosts = calculatePercentileScores(
+      allFacebookPosts,
+      weights
     );
+    allScoredPosts.push(...scoredFacebookPosts);
   }
 
-  // --- IMPORTANT CHANGE IS HERE: Score ONLY the NEW posts ---
-  // We iterate over `cleanedNewPosts` (which are unique by definition from the Meta fetch for this batch)
-  // and score them using the `minMaxValues` derived from the broader context.
-  const scoredNewPostsIntermediate: IntermediateScoredPost[] =
-    cleanedNewPosts.map((aCleanedNewPost) =>
-      calculatePostScore(aCleanedNewPost, minMaxValues, weights)
+  if (allInstagramPosts.length > 0) {
+    console.log(`Scoring ${allInstagramPosts.length} Instagram posts...`);
+    const scoredInstagramPosts = calculatePercentileScores(
+      allInstagramPosts,
+      weights
     );
-  // This log will now correctly reflect the number of new posts being scored.
+    allScoredPosts.push(...scoredInstagramPosts);
+  }
+
+  if (allScoredPosts.length === 0) {
+    console.log("No posts were available to be scored.");
+    return [];
+  }
+
+  const postsToUpsert = allScoredPosts;
   console.log(
-    `Calculated scores for ${scoredNewPostsIntermediate.length} new posts.`
+    `Identified ${postsToUpsert.length} total posts to save to the database.`
   );
 
-  // Rank only the NEWLY scored posts
-  const rankedNewPosts = rankPosts(scoredNewPostsIntermediate);
-  console.log(`Ranked ${rankedNewPosts.length} new posts.`);
+  const rankedPostsToUpsert = rankPosts(postsToUpsert);
+  console.log(`Ranked ${rankedPostsToUpsert.length} posts for this batch.`);
 
-  // The rankedNewPosts array will now only contain entries derived from newPostsRaw,
-  // ensuring no duplicate post_ids from this batch processing step.
-  return rankedNewPosts;
+  return rankedPostsToUpsert;
 }

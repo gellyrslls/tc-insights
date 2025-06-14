@@ -95,6 +95,8 @@ interface HistoricalPostRow {
   platform: string;
   publish_time: string;
   permalink?: string | null;
+  caption?: string | null;
+  image_url?: string | null;
   views: number | null;
   reach: number | null;
   interactions: number | null;
@@ -595,7 +597,6 @@ async function fetchInstagramMediaInsights(
   }
 }
 
-// NEW FUNCTION FOR PAGINATED FETCH OF HISTORICAL POSTS
 async function fetchAllHistoricalPosts(
   supabaseClient: SupabaseClient
 ): Promise<PostDataForScoring[]> {
@@ -615,7 +616,7 @@ async function fetchAllHistoricalPosts(
     } = await supabaseClient
       .from("social_posts")
       .select(
-        "post_id, platform, publish_time, permalink, views, reach, interactions, link_clicks",
+        "post_id, platform, publish_time, permalink, caption, image_url, views, reach, interactions, link_clicks",
         { count: "exact" }
       )
       .range(offset, offset + CHUNK_SIZE - 1);
@@ -644,6 +645,8 @@ async function fetchAllHistoricalPosts(
           platform: p.platform,
           publish_time: p.publish_time,
           permalink: p.permalink,
+          caption: p.caption,
+          image_url: p.image_url,
           views: p.views,
           reach: p.reach,
           interactions: p.interactions,
