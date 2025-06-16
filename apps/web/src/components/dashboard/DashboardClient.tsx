@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react"; // Import useRef
+import { useState, useEffect, useCallback, useRef } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   RefreshCw,
   Facebook,
   Instagram,
   Calendar as CalendarIcon,
+  Search, // 1. Import Search Icon
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { User } from "@supabase/supabase-js";
@@ -64,6 +65,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
   const [date, setDate] = useState<DateRange | undefined>(undefined);
+  // 2. Add state for search query and debounced query
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [analysisText, setAnalysisText] = useState("");
@@ -71,19 +75,20 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [isInsightSaving, setIsInsightSaving] = useState(false);
 
   const hasActiveFilters =
-    platform !== "all" || timePeriod !== "overall" || !!date;
+    platform !== "all" ||
+    timePeriod !== "overall" ||
+    !!date ||
+    searchQuery !== "";
 
-  // *** START OF THE FINAL FIX ***
-
-  // 1. Create a ref to track the state of a user's date selection "session".
-  // This does not cause re-renders and persists across them.
   const isDateSelectionInProgress = useRef(false);
 
+  // 3. Update fetchPosts to accept and use the search query
   const fetchPosts = useCallback(
     async (
       currentPlatform: string,
       currentPeriod: string,
-      currentDate?: DateRange
+      currentDate?: DateRange,
+      currentSearchQuery?: string
     ) => {
       setIsLoading(true);
       const params = new URLSearchParams();
@@ -92,12 +97,17 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         params.append("platform", currentPlatform);
       }
 
+      if (currentSearchQuery && currentSearchQuery.trim() !== "") {
+        params.append("searchQuery", currentSearchQuery.trim());
+      }
+
       if (currentPeriod === "custom" && currentDate?.from && currentDate?.to) {
         params.append("startDate", format(currentDate.from, "yyyy-MM-dd"));
         params.append("endDate", format(currentDate.to, "yyyy-MM-dd"));
       } else if (currentPeriod !== "overall") {
         params.append("period", currentPeriod);
-      } else {
+      } else if (!currentSearchQuery) {
+        // Only apply ranking/limit for the default "Overall" view without search
         params.append("ranking", "overall");
         params.append("limit", "10");
       }
@@ -117,43 +127,50 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     []
   );
 
-  // 2. Create a handler for when the popover opens or closes.
   const handleDatePopoverOpenChange = (open: boolean) => {
-    // When the popover opens, we know the user is starting a NEW selection.
-    // So, we set our ref to true.
     if (open) {
       isDateSelectionInProgress.current = true;
     }
   };
 
-  // 3. Create the definitive handler for date selection.
   const handleDateSelect = (range: DateRange | undefined) => {
-    // Always update the state for immediate UI feedback.
     setDate(range);
 
-    // If our ref is true, it means this is the FIRST click.
     if (isDateSelectionInProgress.current) {
-      // It's the first click, so we do NOT fetch. We just set the ref to false
-      // to signal that the next click will be the second one.
       isDateSelectionInProgress.current = false;
-      return; // Stop execution here.
+      return;
     }
 
-    // If the ref was already false, it means this is the SECOND click.
-    // Now we can safely check for a complete range and fetch.
     if (range?.from && range?.to) {
       setTimePeriod("custom");
-      fetchPosts(platform, "custom", range);
+      fetchPosts(platform, "custom", range, debouncedSearchQuery);
     }
   };
 
-  // *** END OF THE FINAL FIX ***
-
-  // Effect for initial data load ONLY
+  // 4. Update initial useEffect to pass an empty search query
   useEffect(() => {
-    fetchPosts("all", "overall", undefined);
+    fetchPosts("all", "overall", undefined, "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 5. Add debouncing logic
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    // This check prevents an initial search on load. The first load is handled above.
+    // It fetches when the debounced query changes OR when other filters change.
+    if (debouncedSearchQuery !== undefined) {
+      fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
+    }
+  }, [debouncedSearchQuery, platform, timePeriod, date, fetchPosts]);
 
   useEffect(() => {
     if (selectedPost) {
@@ -197,7 +214,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
-      await fetchPosts(platform, timePeriod, date);
+      await fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -297,7 +314,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           errorData.details || "Failed to update data from Meta."
         );
       }
-      await fetchPosts(platform, timePeriod, date);
+      await fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
       await fetchLastUpdated();
       toast.success("Data updated successfully!");
     } catch (error: unknown) {
@@ -427,11 +444,23 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
           <div className="mb-6">
             <div className="flex flex-wrap items-center gap-4">
+              {/* 6. Add the search input to the UI */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search by caption..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 h-9 w-[220px] rounded-md border border-input bg-transparent text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isLoading || isUpdating}
+                />
+              </div>
+
               <Select
                 value={platform}
                 onValueChange={(value) => {
                   setPlatform(value);
-                  fetchPosts(value, timePeriod, date);
                 }}
                 disabled={isLoading || isUpdating}
               >
@@ -444,13 +473,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   <SelectItem value="Instagram">Instagram</SelectItem>
                 </SelectContent>
               </Select>
+
               <Select
                 value={timePeriod}
                 onValueChange={(value) => {
                   if (value !== "custom") {
                     setDate(undefined);
                     setTimePeriod(value);
-                    fetchPosts(platform, value, undefined);
                   }
                 }}
                 disabled={isLoading || isUpdating}
@@ -466,7 +495,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 </SelectContent>
               </Select>
 
-              {/* 4. Wire up the new handlers to the Popover and Calendar */}
               <Popover onOpenChange={handleDatePopoverOpenChange}>
                 <PopoverTrigger asChild>
                   <Button
@@ -513,8 +541,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     setPlatform("all");
                     setTimePeriod("overall");
                     setDate(undefined);
-                    fetchPosts("all", "overall", undefined);
+                    setSearchQuery(""); // Clear search query on reset
                   }}
+                  disabled={isLoading || isUpdating}
                 >
                   Clear Filters
                 </Button>

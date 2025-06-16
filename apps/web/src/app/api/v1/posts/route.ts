@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
   const postId = searchParams.get("postId"); // Specific post ID for search
   const ranking = searchParams.get("ranking"); // 'overall'
   const limitParam = searchParams.get("limit");
+  const searchQuery = searchParams.get("searchQuery"); // New parameter for caption search
   const limit = limitParam
     ? parseInt(limitParam, 10)
     : ranking === "overall"
@@ -106,6 +107,10 @@ export async function GET(request: NextRequest) {
     } else {
       if (platform && platform !== "all") {
         query = query.ilike("platform", platform);
+      }
+
+      if (searchQuery) {
+        query = query.ilike("caption", `%${searchQuery}%`);
       }
 
       if (startDate) {
