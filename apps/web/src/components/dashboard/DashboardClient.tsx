@@ -33,8 +33,8 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Tooltip,
   TooltipContent,
-  TooltipTrigger,
   TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
@@ -53,6 +53,8 @@ export type Post = {
   reach: number | null;
   interactions: number | null;
   qualitative_analysis: string | null;
+  analyzed_by_email: string | null;
+  analysis_timestamp: string | null;
   caption?: string | null;
   image_url?: string | null;
 };
@@ -67,6 +69,8 @@ interface InsightData {
   analysis_timestamp: string | null;
 }
 
+const PAGE_SIZE = 10;
+
 export default function DashboardClient({ user }: DashboardClientProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,9 +81,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
   const [date, setDate] = useState<DateRange | undefined>(undefined);
-  // 2. Add state for search query and debounced query
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPosts, setTotalPosts] = useState(0);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [insightData, setInsightData] = useState<InsightData | null>(null);
@@ -94,9 +101,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   const isDateSelectionInProgress = useRef(false);
 
-  // 3. Update fetchPosts to accept and use the search query
   const fetchPosts = useCallback(
     async (
+      pageToFetch: number,
       currentPlatform: string,
       currentPeriod: string,
       currentDate?: DateRange,
@@ -104,6 +111,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     ) => {
       setIsLoading(true);
       const params = new URLSearchParams();
+
+      params.append("page", pageToFetch.toString());
+      params.append("limit", PAGE_SIZE.toString());
 
       if (currentPlatform !== "all") {
         params.append("platform", currentPlatform);
@@ -118,20 +128,19 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         params.append("endDate", format(currentDate.to, "yyyy-MM-dd"));
       } else if (currentPeriod !== "overall") {
         params.append("period", currentPeriod);
-      } else if (!currentSearchQuery) {
-        // Only apply ranking/limit for the default "Overall" view without search
-        params.append("ranking", "overall");
-        params.append("limit", "10");
       }
 
       try {
         const response = await fetch(`/api/v1/posts?${params.toString()}`);
         if (!response.ok) throw new Error("Failed to fetch posts");
-        const data: Post[] = await response.json();
+        const { data, totalCount } = await response.json();
         setPosts(data);
+        setTotalPosts(totalCount || 0);
       } catch (error) {
         console.error(error);
         toast.error("Error: Could not fetch posts.");
+        setPosts([]);
+        setTotalPosts(0);
       } finally {
         setIsLoading(false);
       }
@@ -139,51 +148,28 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     []
   );
 
-  const handleDatePopoverOpenChange = (open: boolean) => {
-    if (open) {
-      isDateSelectionInProgress.current = true;
-    }
-  };
-
-  const handleDateSelect = (range: DateRange | undefined) => {
-    setDate(range);
-
-    if (isDateSelectionInProgress.current) {
-      isDateSelectionInProgress.current = false;
-      return;
-    }
-
-    if (range?.from && range?.to) {
-      setTimePeriod("custom");
-      fetchPosts(platform, "custom", range, debouncedSearchQuery);
-    }
-  };
-
-  // 4. Update initial useEffect to pass an empty search query
-  useEffect(() => {
-    fetchPosts("all", "overall", undefined, "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 5. Add debouncing logic
+  // Debouncing for search input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-    }, 500); // 500ms delay
-
-    return () => {
-      clearTimeout(handler);
-    };
+      setCurrentPage(1); // Reset to page 1 when search query changes
+    }, 500);
+    return () => clearTimeout(handler);
   }, [searchQuery]);
 
+  // Main data fetching effect
   useEffect(() => {
-    // This check prevents an initial search on load. The first load is handled above.
-    // It fetches when the debounced query changes OR when other filters change.
-    if (debouncedSearchQuery !== undefined) {
-      fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
-    }
-  }, [debouncedSearchQuery, platform, timePeriod, date, fetchPosts]);
+    fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
+  }, [
+    currentPage,
+    platform,
+    timePeriod,
+    date,
+    debouncedSearchQuery,
+    fetchPosts,
+  ]);
 
+  // Fetch insight for selected post
   useEffect(() => {
     if (selectedPost) {
       const fetchInsight = async () => {
@@ -229,7 +215,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
-      await fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
+      // Re-fetch current page data to show updated insight indicator
+      fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -349,7 +336,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           errorData.details || "Failed to update data from Meta."
         );
       }
-      await fetchPosts(platform, timePeriod, date, debouncedSearchQuery);
+      // After update, fetch from page 1 with current filters
+      setCurrentPage(1);
+      fetchPosts(1, platform, timePeriod, date, debouncedSearchQuery);
       await fetchLastUpdated();
       toast.success("Data updated successfully!");
     } catch (error: unknown) {
@@ -365,6 +354,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const topThreePosts = posts.slice(0, 3);
   const displayName =
     user?.user_metadata?.full_name?.split(" ")[0] || user?.email;
+  const totalPages = Math.ceil(totalPosts / PAGE_SIZE);
 
   return (
     <TooltipProvider>
@@ -396,7 +386,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 {lastUpdated
                   ? `Last updated: ${formatDistanceToNow(
                       new Date(lastUpdated),
-                      { addSuffix: true }
+                      {
+                        addSuffix: true,
+                      }
                     )}`
                   : "Last updated: Never"}
               </span>
@@ -415,7 +407,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             </div>
           </div>
 
-          {!hasActiveFilters && (
+          {!hasActiveFilters && currentPage === 1 && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">
                 Top Performing Posts
@@ -479,7 +471,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
           <div className="mb-6">
             <div className="flex flex-wrap items-center gap-4">
-              {/* 6. Add the search input to the UI */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
@@ -496,6 +487,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 value={platform}
                 onValueChange={(value) => {
                   setPlatform(value);
+                  setCurrentPage(1);
                 }}
                 disabled={isLoading || isUpdating}
               >
@@ -515,6 +507,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   if (value !== "custom") {
                     setDate(undefined);
                     setTimePeriod(value);
+                    setCurrentPage(1);
                   }
                 }}
                 disabled={isLoading || isUpdating}
@@ -530,7 +523,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 </SelectContent>
               </Select>
 
-              <Popover onOpenChange={handleDatePopoverOpenChange}>
+              <Popover
+                onOpenChange={(open) =>
+                  (isDateSelectionInProgress.current = open)
+                }
+              >
                 <PopoverTrigger asChild>
                   <Button
                     id="date"
@@ -562,7 +559,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     mode="range"
                     defaultMonth={date?.from}
                     selected={date}
-                    onSelect={handleDateSelect}
+                    onSelect={(range) => {
+                      setDate(range);
+                      if (range?.from && range?.to) {
+                        setTimePeriod("custom");
+                        setCurrentPage(1);
+                      }
+                    }}
                     numberOfMonths={2}
                   />
                 </PopoverContent>
@@ -576,7 +579,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     setPlatform("all");
                     setTimePeriod("overall");
                     setDate(undefined);
-                    setSearchQuery(""); // Clear search query on reset
+                    setSearchQuery("");
+                    setCurrentPage(1);
                   }}
                   disabled={isLoading || isUpdating}
                 >
@@ -593,6 +597,32 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               onRowClick={handleAddInsightClick}
             />
           </Card>
+
+          {totalPages > 0 && (
+            <div className="flex items-center justify-end space-x-2 py-4">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} ({totalPosts} results)
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1 || isLoading}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages || isLoading}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </main>
 
         <PostInsightModal
