@@ -7,7 +7,8 @@ import {
   Facebook,
   Instagram,
   Calendar as CalendarIcon,
-  Search, // 1. Import Search Icon
+  Search,
+  MessageSquareText,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { User } from "@supabase/supabase-js";
@@ -29,7 +30,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
 import SignOutButton from "../auth/SignOutButton";
@@ -285,6 +291,26 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           {row.original.reach?.toLocaleString() || "N/A"}
         </div>
       ),
+    },
+    {
+      id: "insight_indicator",
+      header: () => <div className="w-4"></div>,
+      cell: ({ row }) => {
+        const hasInsight = !!row.original.qualitative_analysis;
+        return hasInsight ? (
+          <Tooltip>
+            <TooltipTrigger>
+              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Insight Added</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="w-4 h-4"></div>
+        );
+      },
+      size: 20,
     },
   ];
 
