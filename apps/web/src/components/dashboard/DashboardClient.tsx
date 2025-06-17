@@ -9,8 +9,12 @@ import {
   Calendar as CalendarIcon,
   Search,
   MessageSquareText,
+  Trophy,
+  Eye,
+  Users,
+  Heart,
+  ExternalLink,
 } from "lucide-react";
-import type { ColumnDef } from "@tanstack/react-table";
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import { type DateRange } from "react-day-picker";
@@ -36,7 +40,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DataTable } from "./data-table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
 import SignOutButton from "../auth/SignOutButton";
 import { PostInsightModal } from "./PostInsightModal";
@@ -52,6 +63,7 @@ export type Post = {
   views: number | null;
   reach: number | null;
   interactions: number | null;
+  link_clicks: number | null;
   qualitative_analysis: string | null;
   analyzed_by_email: string | null;
   analysis_timestamp: string | null;
@@ -215,7 +227,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
-      // Re-fetch current page data to show updated insight indicator
       fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
       handleCloseDialog();
     } catch (error) {
@@ -225,90 +236,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       setIsInsightSaving(false);
     }
   };
-
-  const columns: ColumnDef<Post>[] = [
-    {
-      accessorKey: "rank",
-      header: "Rank",
-      cell: ({ row }) => (
-        <div className="text-center font-medium">#{row.getValue("rank")}</div>
-      ),
-    },
-    {
-      accessorKey: "platform",
-      header: "Platform",
-      cell: ({ row }) => {
-        const platformValue: "Facebook" | "Instagram" =
-          row.getValue("platform");
-        return (
-          <div className="flex items-center space-x-2">
-            {platformValue === "Facebook" ? (
-              <Facebook className="w-4 h-4 text-blue-600" />
-            ) : (
-              <Instagram className="w-4 h-4 text-pink-600" />
-            )}
-            <span className="text-sm">{platformValue}</span>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "composite_score",
-      header: "Score",
-      cell: ({ row }) => (
-        <span className="font-semibold text-tc-red">
-          {parseFloat(row.getValue("composite_score")).toFixed(1)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "publish_time",
-      header: "Published",
-      cell: ({ row }) => (
-        <span className="text-sm text-gray-600">
-          {format(new Date(row.getValue("publish_time")), "LLL dd, yyyy")}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "interactions",
-      header: () => <div className="text-right">Interactions</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.interactions?.toLocaleString() || "N/A"}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "reach",
-      header: () => <div className="text-right">Reach</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.reach?.toLocaleString() || "N/A"}
-        </div>
-      ),
-    },
-    {
-      id: "insight_indicator",
-      header: () => <div className="w-4"></div>,
-      cell: ({ row }) => {
-        const hasInsight = !!row.original.qualitative_analysis;
-        return hasInsight ? (
-          <Tooltip>
-            <TooltipTrigger>
-              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Insight Added</p>
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className="w-4 h-4"></div>
-        );
-      },
-      size: 20,
-    },
-  ];
 
   const fetchLastUpdated = useCallback(async () => {
     try {
@@ -336,7 +263,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           errorData.details || "Failed to update data from Meta."
         );
       }
-      // After update, fetch from page 1 with current filters
       setCurrentPage(1);
       fetchPosts(1, platform, timePeriod, date, debouncedSearchQuery);
       await fetchLastUpdated();
@@ -349,6 +275,37 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // Helper function to format large numbers into K/M format
+  const formatNumber = (num: number | null | undefined): string => {
+    if (num === null || num === undefined) return "--";
+    if (num === 0) return "0";
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    }
+    if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    }
+    return num.toString();
+  };
+
+  // Helper function to get the first sentence of a caption
+  const getFirstSentence = (caption: string | null | undefined): string => {
+    if (!caption) return "No caption available for this post.";
+    const firstSentence = caption.split(/[.!?]/)[0];
+    return firstSentence.length > 80
+      ? `${firstSentence.substring(0, 80)}...`
+      : `${firstSentence}.`;
+  };
+
+  // Helper function to get the rank styling
+  const getRankStyling = (rank: number): string => {
+    if (rank === 1) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    if (rank === 2) return "bg-gray-200 text-gray-800 border-gray-300";
+    if (rank === 3) return "bg-orange-100 text-orange-800 border-orange-200";
+    if (rank <= 10) return "bg-red-100/60 text-tc-red border-red-200/80";
+    return "bg-gray-100 text-gray-600 border-gray-200";
   };
 
   const topThreePosts = posts.slice(0, 3);
@@ -413,7 +370,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 Top Performing Posts
               </h2>
               <div className="grid md:grid-cols-3 gap-6">
-                {topThreePosts.map((post, index) => (
+                {topThreePosts.map((post) => (
                   <Card
                     key={post.post_id}
                     className="cursor-pointer hover:shadow-lg transition-shadow duration-200 overflow-hidden"
@@ -436,7 +393,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                           )}
                         </div>
                         <div className="absolute top-3 right-3 bg-tc-red text-white px-3 py-1 rounded-full text-sm font-semibold">
-                          #{index + 1}
+                          #{post.rank}
                         </div>
                       </div>
                       <div className="p-4">
@@ -454,12 +411,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                         </p>
                         <div className="flex justify-between mt-3 text-xs text-gray-500">
                           <span>
-                            {post.interactions?.toLocaleString() || "N/A"}{" "}
-                            interactions
+                            {formatNumber(post.interactions)} interactions
                           </span>
-                          <span>
-                            {post.reach?.toLocaleString() || "N/A"} reach
-                          </span>
+                          <span>{formatNumber(post.reach)} reach</span>
                         </div>
                       </div>
                     </CardContent>
@@ -591,11 +545,115 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           </div>
 
           <Card>
-            <DataTable
-              columns={columns}
-              data={posts}
-              onRowClick={handleAddInsightClick}
-            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px] text-center">
+                    <Trophy className="inline-block h-4 w-4 mr-1" /> Rank
+                  </TableHead>
+                  <TableHead className="min-w-[300px]">Post</TableHead>
+                  <TableHead className="text-center">
+                    <Heart className="inline-block h-4 w-4 mr-1" /> Interactions
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Users className="inline-block h-4 w-4 mr-1" /> Reach
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Eye className="inline-block h-4 w-4 mr-1" /> Views
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <ExternalLink className="inline-block h-4 w-4 mr-1" /> Link
+                    Clicks
+                  </TableHead>
+                  <TableHead className="text-center">Date published</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {posts.length > 0 ? (
+                  posts.map((post) => (
+                    <TableRow
+                      key={post.post_id}
+                      className="cursor-pointer hover:bg-gray-50/80 transition-colors"
+                      onClick={() => handleAddInsightClick(post)}
+                    >
+                      <TableCell className="text-center font-semibold">
+                        <div
+                          className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center border-2 ${getRankStyling(
+                            post.rank
+                          )}`}
+                        >
+                          {post.rank}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-4">
+                          <div className="relative flex-shrink-0">
+                            <Image
+                              src={post.image_url || "/placeholder.svg"}
+                              alt="Post thumbnail"
+                              width={64}
+                              height={64}
+                              className="w-16 h-16 object-cover rounded-lg border"
+                            />
+                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                              {post.platform === "Facebook" ? (
+                                <Facebook className="w-4 h-4 text-blue-600" />
+                              ) : (
+                                <Instagram className="w-4 h-4 text-pink-600" />
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-800 line-clamp-2">
+                              {getFirstSentence(post.caption)}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <span className="text-xs text-gray-500">
+                                Score:{" "}
+                                <span className="font-bold text-tc-red">
+                                  {post.composite_score.toFixed(1)}
+                                </span>
+                              </span>
+                              {post.qualitative_analysis && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <MessageSquareText className="h-4 w-4 text-blue-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Insight Added</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatNumber(post.interactions)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatNumber(post.reach)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatNumber(post.views)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatNumber(post.link_clicks)}
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-gray-600">
+                        {format(new Date(post.publish_time), "MMM dd, yyyy")}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      {isLoading ? "Loading posts..." : "No results found."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </Card>
 
           {totalPages > 0 && (
