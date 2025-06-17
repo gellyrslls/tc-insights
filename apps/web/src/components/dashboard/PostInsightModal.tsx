@@ -20,12 +20,19 @@ import {
 } from "lucide-react";
 import type { Post } from "./DashboardClient";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
+
+interface InsightData {
+  qualitative_analysis: string | null;
+  analyzed_by_email: string | null;
+  analysis_timestamp: string | null;
+}
 
 interface PostInsightModalProps {
   isOpen: boolean;
   onClose: () => void;
   post: Post | null;
-  insight: string;
+  insightData: InsightData | null;
   onInsightChange: (value: string) => void;
   onSave: () => void;
   isLoading: boolean;
@@ -36,7 +43,7 @@ export function PostInsightModal({
   isOpen,
   onClose,
   post,
-  insight,
+  insightData,
   onInsightChange,
   onSave,
   isLoading,
@@ -115,7 +122,7 @@ export function PostInsightModal({
             <div>
               <h4 className="font-medium text-gray-900 mb-2">Your Analysis</h4>
               <Textarea
-                value={insight}
+                value={insightData?.qualitative_analysis || ""}
                 onChange={(e) => onInsightChange(e.target.value)}
                 placeholder="Why do you think this post performed that way it did? What was the audience reaction? What are the key takeaways for future posts?"
                 className="min-h-[120px] resize-none"
@@ -123,31 +130,52 @@ export function PostInsightModal({
               />
               <div className="flex justify-between items-center mt-2">
                 <span className="text-xs text-gray-500">
-                  {insight.length} characters
+                  {(insightData?.qualitative_analysis || "").length} characters
                 </span>
               </div>
             </div>
           </div>
         )}
 
-        <DialogFooter className="pt-4 border-t sm:justify-between">
-          <Button variant="ghost" asChild>
-            <Link
-              href={post.permalink}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Original Post
-            </Link>
-          </Button>
-          <div className="flex space-x-2">
+        <DialogFooter className="pt-4 border-t flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between">
+          {/* History / Last Updated Text */}
+          <div className="text-xs text-muted-foreground mt-2 sm:mt-0">
+            {insightData?.analyzed_by_email &&
+            insightData?.analysis_timestamp ? (
+              <span>
+                Last updated by{" "}
+                <span className="font-medium">
+                  {insightData.analyzed_by_email}
+                </span>{" "}
+                {formatDistanceToNow(new Date(insightData.analysis_timestamp), {
+                  addSuffix: true,
+                })}
+              </span>
+            ) : (
+              <span>No analysis saved for this post yet.</span>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex sm:justify-end gap-2">
+            <Button variant="ghost" asChild>
+              <Link
+                href={post.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Original Post
+              </Link>
+            </Button>
             <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
             <Button
               onClick={onSave}
               disabled={
-                isSaving || isLoading || (insight || "").trim().length === 0
+                isSaving ||
+                isLoading ||
+                (insightData?.qualitative_analysis || "").trim().length === 0
               }
               className="bg-tc-red hover:bg-tc-darkred"
             >

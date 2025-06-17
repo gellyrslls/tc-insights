@@ -61,6 +61,12 @@ interface DashboardClientProps {
   user: User;
 }
 
+interface InsightData {
+  qualitative_analysis: string | null;
+  analyzed_by_email: string | null;
+  analysis_timestamp: string | null;
+}
+
 export default function DashboardClient({ user }: DashboardClientProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +82,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [analysisText, setAnalysisText] = useState("");
+  const [insightData, setInsightData] = useState<InsightData | null>(null);
   const [isInsightLoading, setIsInsightLoading] = useState(false);
   const [isInsightSaving, setIsInsightSaving] = useState(false);
 
@@ -182,13 +188,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     if (selectedPost) {
       const fetchInsight = async () => {
         setIsInsightLoading(true);
+        setInsightData(null);
         try {
           const response = await fetch(
             `/api/v1/insights/${selectedPost.post_id}`
           );
           if (!response.ok) throw new Error("Failed to fetch insight.");
-          const data = await response.json();
-          setAnalysisText(data.qualitative_analysis || "");
+          const data: InsightData = await response.json();
+          setInsightData(data);
         } catch (error) {
           console.error(error);
           toast.error("Error: Could not fetch existing insight.");
@@ -206,17 +213,19 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   const handleCloseDialog = () => {
     setSelectedPost(null);
-    setAnalysisText("");
+    setInsightData(null);
   };
 
   const handleSaveInsight = async () => {
-    if (!selectedPost) return;
+    if (!selectedPost || !insightData) return;
     setIsInsightSaving(true);
     try {
       const response = await fetch(`/api/v1/insights/${selectedPost.post_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisText }),
+        body: JSON.stringify({
+          analysisText: insightData.qualitative_analysis,
+        }),
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
@@ -590,8 +599,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           isOpen={!!selectedPost}
           onClose={handleCloseDialog}
           post={selectedPost}
-          insight={analysisText}
-          onInsightChange={setAnalysisText}
+          insightData={insightData}
+          onInsightChange={(text) =>
+            setInsightData(
+              (prev) => ({ ...prev, qualitative_analysis: text } as InsightData)
+            )
+          }
           onSave={handleSaveInsight}
           isLoading={isInsightLoading}
           isSaving={isInsightSaving}
