@@ -180,12 +180,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           const response = await fetch(
             `/api/v1/insights/${selectedPost.post_id}`
           );
-          if (!response.ok) throw new Error("Failed to fetch insight history.");
+          if (!response.ok) throw new Error("Failed to fetch insights history.");
           const data: InsightHistoryEntry[] = await response.json();
           setInsightHistory(data);
         } catch (error) {
           console.error(error);
-          toast.error("Error: Could not fetch insight history.");
+          toast.error("Error: Could not fetch insights history.");
         } finally {
           setIsInsightLoading(false);
         }
@@ -209,8 +209,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analysisText: newAnalysisText }),
       });
-      if (!response.ok) throw new Error("Failed to save insight.");
-      toast.success("Insight saved successfully!");
+      if (!response.ok) throw new Error("Failed to save insights.");
+      toast.success("Insights saved successfully!");
 
       // Manually refresh the posts to show the new insight indicator
       fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
@@ -218,7 +218,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       handleCloseDialog();
     } catch (error) {
       console.error(error);
-      toast.error("Error: Could not save insight.");
+      toast.error("Error: Could not save insights.");
     } finally {
       setIsInsightSaving(false);
     }
@@ -342,7 +342,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             </div>
           </div>
 
-          {!hasActiveFilters && currentPage === 1 && (
+          {currentPage === 1 && debouncedSearchQuery === "" && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">
                 Top Performing Posts
@@ -598,7 +598,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                                     <MessageSquareText className="h-4 w-4 text-blue-500" />
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>Insight Added</p>
+                                    <p>Insights Added</p>
                                   </TooltipContent>
                                 </Tooltip>
                               )}

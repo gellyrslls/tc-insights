@@ -45,35 +45,35 @@ interface PostInsightModalProps {
 
 const insightGuideQuestions = [
   {
-    category: "Content Analysis",
+    category: "Platform & Audience Analysis",
     questions: [
-      "What specific elements of the content resonated with the audience?",
-      "How did the visual elements contribute to engagement?",
-      "Was the caption length and tone appropriate for the platform?",
+      "Does this post's performance align with our typical audience for this platform? (e.g., broad university news for Facebook, niche social/political commentary for Instagram).",
+      "Why do you think this resonated more (or less) on this specific platform?",
+      "Does this post reveal anything new about the audience on this platform? (e.g., a growing interest in a new topic).",
     ],
   },
   {
-    category: "Audience Engagement",
+    category: "Content & Format Strategy",
     questions: [
-      "What type of audience engaged most with this post?",
-      "What was the sentiment of the comments and reactions?",
-      "Did the post spark meaningful conversations or discussions?",
+      "Was the format (e.g., photo album, comic, news update, literary piece) the right choice for this message? Why?",
+      "What specific theme does this post fall under (e.g., University Event, Student Life/Humor, Breaking News, Social Issue)? How does this theme typically perform?",
+      "What element of the content (visuals, caption, headline) was most responsible for its performance?",
     ],
   },
   {
-    category: "Performance Factors",
+    category: "Context & Timing",
     questions: [
-      "What timing factors contributed to the post's performance?",
-      "How did external events or trends influence engagement?",
-      "How did this post perform compared to our average metrics?",
+      "How did the timing of this post affect its performance? (e.g., start of semester, major university event like USC Days, holiday, anniversary like Martial Law).",
+      "Was this an 'ASAP' post (breaking news, urgent update)? If so, how did that urgency impact its reach and interaction?",
+      "How does this post's performance compare to other posts from the same general time period?",
     ],
   },
   {
     category: "Future Recommendations",
     questions: [
-      "What lessons can be applied to future content?",
-      "What content themes or formats should we replicate?",
-      "Are there any improvements or adjustments to consider?",
+      "What is the key, actionable lesson from this post that we can apply to future content?",
+      "Based on this, should we create more or less of this type of content? Should we try it on a different platform?",
+      "What is one takeaway from this post that should be included in the next bi-monthly report?",
     ],
   },
 ];
@@ -137,7 +137,7 @@ export function PostInsightModal({
       <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 border-b flex-shrink-0">
           <DialogTitle className="text-xl font-semibold text-gray-900">
-            Add Qualitative Insight
+            Add Qualitative Insights
           </DialogTitle>
         </DialogHeader>
 
@@ -194,7 +194,7 @@ export function PostInsightModal({
               </div>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">Your Analysis</h4>
+              <h4 className="font-medium text-gray-900 mb-2">Your Insights</h4>
               <Textarea
                 value={analysisText}
                 onChange={(e) => setAnalysisText(e.target.value)}
@@ -270,9 +270,7 @@ export function PostInsightModal({
                 </TabsContent>
                 <TabsContent value="guide" className="mt-0">
                   <div className="space-y-3 max-h-[calc(80vh-150px)] overflow-y-auto pr-2 text-sm text-gray-600">
-                    <p className="mb-4">
-                      Use these questions to guide your analysis.
-                    </p>
+                    <p className="mb-4">How to provide Insights?</p>
                     {insightGuideQuestions.map((section) => (
                       <div
                         key={section.category}
@@ -328,7 +326,7 @@ export function PostInsightModal({
               className="bg-tc-red hover:bg-tc-darkred"
             >
               {isSaving && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              Save Insight
+              Save Insights
             </Button>
           </div>
         </DialogFooter>

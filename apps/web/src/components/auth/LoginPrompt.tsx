@@ -70,7 +70,7 @@ export function LoginPrompt() {
               <CardContent>
                 <p className="text-gray-600">
                   Filter by platform, time periods, or custom date ranges to
-                  focus your analysis.
+                  focus your insights.
                 </p>
               </CardContent>
             </Card>
