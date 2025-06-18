@@ -71,14 +71,14 @@ export type Post = {
   image_url?: string | null;
 };
 
-interface DashboardClientProps {
-  user: User;
+export interface InsightHistoryEntry {
+  analysis_text: string;
+  analyzed_by_email: string;
+  created_at: string;
 }
 
-interface InsightData {
-  qualitative_analysis: string | null;
-  analyzed_by_email: string | null;
-  analysis_timestamp: string | null;
+interface DashboardClientProps {
+  user: User;
 }
 
 const PAGE_SIZE = 10;
@@ -89,19 +89,19 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Filter states
   const [platform, setPlatform] = useState("all");
   const [timePeriod, setTimePeriod] = useState("overall");
   const [date, setDate] = useState<DateRange | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPosts, setTotalPosts] = useState(0);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [insightData, setInsightData] = useState<InsightData | null>(null);
+  const [insightHistory, setInsightHistory] = useState<
+    InsightHistoryEntry[] | null
+  >(null);
   const [isInsightLoading, setIsInsightLoading] = useState(false);
   const [isInsightSaving, setIsInsightSaving] = useState(false);
 
@@ -123,25 +123,17 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     ) => {
       setIsLoading(true);
       const params = new URLSearchParams();
-
       params.append("page", pageToFetch.toString());
       params.append("limit", PAGE_SIZE.toString());
-
-      if (currentPlatform !== "all") {
-        params.append("platform", currentPlatform);
-      }
-
-      if (currentSearchQuery && currentSearchQuery.trim() !== "") {
+      if (currentPlatform !== "all") params.append("platform", currentPlatform);
+      if (currentSearchQuery?.trim())
         params.append("searchQuery", currentSearchQuery.trim());
-      }
-
       if (currentPeriod === "custom" && currentDate?.from && currentDate?.to) {
         params.append("startDate", format(currentDate.from, "yyyy-MM-dd"));
         params.append("endDate", format(currentDate.to, "yyyy-MM-dd"));
       } else if (currentPeriod !== "overall") {
         params.append("period", currentPeriod);
       }
-
       try {
         const response = await fetch(`/api/v1/posts?${params.toString()}`);
         if (!response.ok) throw new Error("Failed to fetch posts");
@@ -160,16 +152,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     []
   );
 
-  // Debouncing for search input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-      setCurrentPage(1); // Reset to page 1 when search query changes
+      setCurrentPage(1);
     }, 500);
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Main data fetching effect
   useEffect(() => {
     fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
   }, [
@@ -181,22 +171,21 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     fetchPosts,
   ]);
 
-  // Fetch insight for selected post
   useEffect(() => {
     if (selectedPost) {
       const fetchInsight = async () => {
         setIsInsightLoading(true);
-        setInsightData(null);
+        setInsightHistory(null);
         try {
           const response = await fetch(
             `/api/v1/insights/${selectedPost.post_id}`
           );
-          if (!response.ok) throw new Error("Failed to fetch insight.");
-          const data: InsightData = await response.json();
-          setInsightData(data);
+          if (!response.ok) throw new Error("Failed to fetch insight history.");
+          const data: InsightHistoryEntry[] = await response.json();
+          setInsightHistory(data);
         } catch (error) {
           console.error(error);
-          toast.error("Error: Could not fetch existing insight.");
+          toast.error("Error: Could not fetch insight history.");
         } finally {
           setIsInsightLoading(false);
         }
@@ -205,29 +194,27 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }
   }, [selectedPost]);
 
-  const handleAddInsightClick = (post: Post) => {
-    setSelectedPost(post);
-  };
-
+  const handleAddInsightClick = (post: Post) => setSelectedPost(post);
   const handleCloseDialog = () => {
     setSelectedPost(null);
-    setInsightData(null);
+    setInsightHistory(null);
   };
 
-  const handleSaveInsight = async () => {
-    if (!selectedPost || !insightData) return;
+  const handleSaveInsight = async (newAnalysisText: string) => {
+    if (!selectedPost) return;
     setIsInsightSaving(true);
     try {
       const response = await fetch(`/api/v1/insights/${selectedPost.post_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          analysisText: insightData.qualitative_analysis,
-        }),
+        body: JSON.stringify({ analysisText: newAnalysisText }),
       });
       if (!response.ok) throw new Error("Failed to save insight.");
       toast.success("Insight saved successfully!");
+
+      // Manually refresh the posts to show the new insight indicator
       fetchPosts(currentPage, platform, timePeriod, date, debouncedSearchQuery);
+
       handleCloseDialog();
     } catch (error) {
       console.error(error);
@@ -277,20 +264,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }
   };
 
-  // Helper function to format large numbers into K/M format
   const formatNumber = (num: number | null | undefined): string => {
     if (num === null || num === undefined) return "--";
     if (num === 0) return "0";
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`;
-    }
-    if (num >= 1000) {
-      return `${(num / 1000).toFixed(1)}K`;
-    }
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
   };
 
-  // Helper function to get the first sentence of a caption
   const getFirstSentence = (caption: string | null | undefined): string => {
     if (!caption) return "No caption available for this post.";
     const firstSentence = caption.split(/[.!?]/)[0];
@@ -299,7 +280,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       : `${firstSentence}.`;
   };
 
-  // Helper function to get the rank styling
   const getRankStyling = (rank: number): string => {
     if (rank === 1) return "bg-yellow-100 text-yellow-800 border-yellow-200";
     if (rank === 2) return "bg-gray-200 text-gray-800 border-gray-300";
@@ -343,9 +323,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 {lastUpdated
                   ? `Last updated: ${formatDistanceToNow(
                       new Date(lastUpdated),
-                      {
-                        addSuffix: true,
-                      }
+                      { addSuffix: true }
                     )}`
                   : "Last updated: Never"}
               </span>
@@ -436,7 +414,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   disabled={isLoading || isUpdating}
                 />
               </div>
-
               <Select
                 value={platform}
                 onValueChange={(value) => {
@@ -454,7 +431,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   <SelectItem value="Instagram">Instagram</SelectItem>
                 </SelectContent>
               </Select>
-
               <Select
                 value={timePeriod}
                 onValueChange={(value) => {
@@ -476,7 +452,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   <SelectItem value="last_90_days">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
-
               <Popover
                 onOpenChange={(open) =>
                   (isDateSelectionInProgress.current = open)
@@ -495,10 +470,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {date?.from ? (
                       date.to ? (
-                        <>
-                          {format(date.from, "LLL dd, y")} -{" "}
-                          {format(date.to, "LLL dd, y")}
-                        </>
+                        `${format(date.from, "LLL dd, y")} - ${format(
+                          date.to,
+                          "LLL dd, y"
+                        )}`
                       ) : (
                         format(date.from, "LLL dd, y")
                       )
@@ -524,7 +499,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   />
                 </PopoverContent>
               </Popover>
-
               {hasActiveFilters && (
                 <Button
                   variant="outline"
@@ -549,21 +523,25 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[80px] text-center">
-                    <Trophy className="inline-block h-4 w-4 mr-1" /> Rank
+                    <Trophy className="inline-block h-4 w-4 mr-1" />
+                    Rank
                   </TableHead>
                   <TableHead className="min-w-[300px]">Post</TableHead>
                   <TableHead className="text-center">
-                    <Heart className="inline-block h-4 w-4 mr-1" /> Interactions
+                    <Heart className="inline-block h-4 w-4 mr-1" />
+                    Interactions
                   </TableHead>
                   <TableHead className="text-center">
-                    <Users className="inline-block h-4 w-4 mr-1" /> Reach
+                    <Users className="inline-block h-4 w-4 mr-1" />
+                    Reach
                   </TableHead>
                   <TableHead className="text-center">
-                    <Eye className="inline-block h-4 w-4 mr-1" /> Views
+                    <Eye className="inline-block h-4 w-4 mr-1" />
+                    Views
                   </TableHead>
                   <TableHead className="text-center">
-                    <ExternalLink className="inline-block h-4 w-4 mr-1" /> Link
-                    Clicks
+                    <ExternalLink className="inline-block h-4 w-4 mr-1" />
+                    Link Clicks
                   </TableHead>
                   <TableHead className="text-center">Date published</TableHead>
                 </TableRow>
@@ -687,12 +665,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           isOpen={!!selectedPost}
           onClose={handleCloseDialog}
           post={selectedPost}
-          insightData={insightData}
-          onInsightChange={(text) =>
-            setInsightData(
-              (prev) => ({ ...prev, qualitative_analysis: text } as InsightData)
-            )
-          }
+          history={insightHistory}
           onSave={handleSaveInsight}
           isLoading={isInsightLoading}
           isSaving={isInsightSaving}

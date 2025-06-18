@@ -8,7 +8,7 @@ interface RouteHandlerContext {
   }>;
 }
 
-// GET: Fetch qualitative analysis for a specific post
+// GET: Fetch the entire insight history for a specific post
 export async function GET(
   request: NextRequest,
   { params }: RouteHandlerContext
@@ -35,30 +35,26 @@ export async function GET(
 
   try {
     const { data, error } = await supabase
-      .from("social_posts")
-      .select("qualitative_analysis, analyzed_by_email, analysis_timestamp")
+      .from("insight_history")
+      .select("analysis_text, analyzed_by_email, created_at")
       .eq("post_id", postId)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
+
     if (error) {
-      console.error(`API GET /insights/${postId} Error:`, error.message);
+      console.error(
+        `API GET /insights/${postId} History Error:`,
+        error.message
+      );
       return NextResponse.json(
-        { error: "Failed to fetch insight", details: error.message },
+        { error: "Failed to fetch insight history", details: error.message },
         { status: 500 }
       );
     }
-    if (!data) {
-      return NextResponse.json(
-        {
-          qualitative_analysis: null,
-          analyzed_by_email: null,
-          analysis_timestamp: null,
-        },
-        { status: 200 }
-      );
-    }
+
+    // Return the array of history entries
     return NextResponse.json(data, { status: 200 });
   } catch (e: unknown) {
-    console.error(`API GET /insights/${postId} Exception:`, e);
+    console.error(`API GET /insights/${postId} History Exception:`, e);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
       { status: 500 }
@@ -66,7 +62,7 @@ export async function GET(
   }
 }
 
-// PUT: Update qualitative analysis for a specific post
+// PUT: Save a new insight, creating a new history entry
 export async function PUT(
   request: NextRequest,
   { params }: RouteHandlerContext
@@ -94,7 +90,10 @@ export async function PUT(
   let body;
   try {
     body = await request.json();
-    if (typeof body?.analysisText !== "string") {
+    if (
+      typeof body?.analysisText !== "string" ||
+      body.analysisText.trim() === ""
+    ) {
       return NextResponse.json(
         { error: "Missing or invalid analysisText in request body" },
         { status: 400 }
@@ -107,42 +106,59 @@ export async function PUT(
     );
   }
 
+  const newInsightData = {
+    post_id: postId,
+    analysis_text: body.analysisText,
+    analyzed_by_email: user.email,
+  };
+
+  const latestPostUpdateData = {
+    qualitative_analysis: body.analysisText,
+    analyzed_by_email: user.email,
+    analysis_timestamp: new Date().toISOString(),
+  };
+
   try {
-    const analysisData = {
-      qualitative_analysis: body.analysisText,
-      analyzed_by_email: user.email,
-      analysis_timestamp: new Date().toISOString(),
-    };
-    const { data, error } = await supabase
+    const { error: historyError } = await supabase
+      .from("insight_history")
+      .insert(newInsightData);
+
+    if (historyError) {
+      console.error(
+        `API PUT /insights/${postId} History Insert Error:`,
+        historyError.message
+      );
+      throw new Error(
+        `Failed to save insight history: ${historyError.message}`
+      );
+    }
+
+    const { data, error: postUpdateError } = await supabase
       .from("social_posts")
-      .update(analysisData)
+      .update(latestPostUpdateData)
       .eq("post_id", postId)
-      .select(
-        "post_id, qualitative_analysis, analyzed_by_email, analysis_timestamp"
-      )
+      .select("post_id")
       .single();
-    if (error) {
-      if (error.code === "PGRST116") {
-        console.warn(`API PUT /insights/${postId}: Post not found for update.`);
-        return NextResponse.json({ error: "Post not found" }, { status: 404 });
-      }
-      console.error(`API PUT /insights/${postId} Error:`, error.message);
-      return NextResponse.json(
-        { error: "Failed to update insight", details: error.message },
-        { status: 500 }
+
+    if (postUpdateError) {
+      console.error(
+        `API PUT /insights/${postId} Post Update Error:`,
+        postUpdateError.message
+      );
+      throw new Error(
+        `Failed to update post with latest insight: ${postUpdateError.message}`
       );
     }
-    if (!data) {
-      return NextResponse.json(
-        { message: "Update applied, but no data returned." },
-        { status: 200 }
-      );
-    }
+
     return NextResponse.json(data, { status: 200 });
   } catch (e: unknown) {
-    console.error(`API PUT /insights/${postId} Exception:`, e);
+    const error = e as Error;
+    console.error(`API PUT /insights/${postId} Exception:`, error.message);
     return NextResponse.json(
-      { error: "An unexpected error occurred during update" },
+      {
+        error: "An unexpected error occurred during update",
+        details: error.message,
+      },
       { status: 500 }
     );
   }
