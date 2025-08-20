@@ -6,7 +6,6 @@
     A web application built for Today's Carolinian to automate the process of collecting, scoring, and analyzing social media post performance.
   </p>
 
-  <!-- Tech Stack Badges -->
   <p>
     <img src="https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js"/>
     <img src="https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/>
@@ -16,14 +15,12 @@
   </p>
 </div>
 
----
 ## About The Project
 
 This project was developed to solve a real-world data aggregation and analysis challenge faced by the publication's Online Managers (OMs). It replaces a time-consuming manual workflow by providing a centralized dashboard to view performance data from both **Facebook** and **Instagram**.
 
 The application handles everything from fetching data via the Meta Graph API to scoring posts using a percentile-based algorithm and providing a UI for OMs to add their qualitative analysis, facilitating the creation of data-driven, bi-monthly reports.
 
----
 
 ## Key Features
 
@@ -33,7 +30,6 @@ The application handles everything from fetching data via the Meta Graph API to 
 *   **One-Click Data Refresh**: A user-triggered backend process that fetches the latest post data and metrics from the Meta Graph API.
 *   **Qualitative Analysis**: A feature for users to add, view, and version their written analysis (insights) for any post.
 
----
 
 ## Tech Stack
 
@@ -44,7 +40,6 @@ The application handles everything from fetching data via the Meta Graph API to 
 *   **UI Components**: [ShadCN/UI](https://ui.shadcn.com/)
 *   **Deployment**: [Vercel](https://vercel.com/)
 
----
 
 ## Getting Started
 
@@ -88,10 +83,8 @@ You will need an account and credentials for the following services:
     ```
     The application will be available at [http://localhost:3000](http://localhost:3000).
 
----
 
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
----
