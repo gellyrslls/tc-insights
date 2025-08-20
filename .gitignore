@@ -23,7 +23,7 @@ lerna-debug.log*
 
 # Environment variables
 .env*.local
-.env # Generally avoid committing this unless it's ONLY for non-sensitive defaults
+.env
 
 # Editor directories and files
 .idea
@@ -52,5 +52,3 @@ Thumbs.db
 
 # Optional Next.js telemetry files
 next-env.d.ts
-
-ROADMAP.md
