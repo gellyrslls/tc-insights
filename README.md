@@ -19,7 +19,7 @@
 
 This project was developed to solve a real-world data aggregation and analysis challenge faced by the publication's Online Managers (OMs). It replaces a time-consuming manual workflow by providing a centralized dashboard to view performance data from both **Facebook** and **Instagram**.
 
-The application handles everything from fetching data via the Meta Graph API to scoring posts using a percentile-based algorithm and providing a UI for OMs to add their qualitative analysis, facilitating the creation of data-driven, bi-monthly reports.
+The application handles everything from fetching data via the Meta Graph API to scoring posts using a percentile-based algorithm and providing a UI for OMs to add their qualitative analysis, which facilitates the creation of data-driven, bi-monthly reports.
 
 
 ## Key Features
@@ -33,11 +33,10 @@ The application handles everything from fetching data via the Meta Graph API to 
 
 ## Tech Stack
 
-*   **Framework**: [Next.js](https://nextjs.org/) (with App Router)
+*   **Framework**: [Next.js](https://nextjs.org/)
 *   **Language**: [TypeScript](https://www.typescriptlang.org/)
 *   **Backend & DB**: [Supabase](https://supabase.io/) (Auth, Postgres, Serverless Functions)
 *   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-*   **UI Components**: [ShadCN/UI](https://ui.shadcn.com/)
 *   **Deployment**: [Vercel](https://vercel.com/)
 
 
